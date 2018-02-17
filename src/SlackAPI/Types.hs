@@ -19,9 +19,9 @@ import           SlackAPI.Events
 
 import           Data.Aeson
 import           Data.Aeson.Types    (Parser, typeMismatch)
-import           Data.String         (IsString)
+import           Data.String         (IsString (..))
 import           Data.Text           (Text)
-import           Web.FormUrlEncoded  (FromForm (..), lookupMaybe)
+import           Web.FormUrlEncoded  (FromForm (..), lookupMaybe, parseUnique)
 import           Web.HttpApiData     (ToHttpApiData (..))
 
 newtype Token = Token Text deriving (Monoid, IsString, ToHttpApiData, Show, ToJSON, FromJSON, Eq)
@@ -72,14 +72,20 @@ instance ToJSON EventResponse where
   toJSON Acknowledge{..} = object [ "challenge" .= challenge ]
   toJSON NoResponse      = object []
 
-newtype ReleaseCommandPayload = ReleaseCommandPayload { projectName :: Maybe Text }
+data ReleaseCommandPayload =
+  ReleaseCommandPayload { projectName :: Maybe Text
+                        , userId      :: UserId
+                        , channel     :: Channel
+                        }
 
 instance FromForm ReleaseCommandPayload where
-  fromForm f = mkPayload <$> lookupMaybe "text" f
-    where
-      mkPayload = ReleaseCommandPayload . avoidEmpty
-      avoidEmpty (Just "") = Nothing
-      avoidEmpty mt        = mt
+  fromForm f =
+    ReleaseCommandPayload <$> (avoidEmpty <$> lookupMaybe "text" f)
+                          <*> (fromString <$> parseUnique "user_id" f)
+                          <*> (fromString <$> parseUnique "channel_id" f)
+      where
+        avoidEmpty (Just "") = Nothing
+        avoidEmpty mt        = mt
 
 data ReleaseCommandResponse = ChannelResponse { message :: Text }
                             | PrivateResponse { message :: Text }
@@ -93,4 +99,3 @@ as text responseType =
   object [ "response_type" .= responseType
          , "text"          .= text
          ]
-
