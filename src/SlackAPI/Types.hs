@@ -6,10 +6,12 @@
 module SlackAPI.Types
   ( Challenge(..)
   , Event(..)
-  , Payload(..)
-  , Response(..)
+  , EventPayload(..)
+  , EventResponse(..)
   , Token(..)
   , module SlackAPI.Events
+  , ReleaseCommandPayload(..)
+  , ReleaseCommandResponse(..)
   ) where
 
 import           SlackAPI.AesonUtils
@@ -19,18 +21,19 @@ import           Data.Aeson
 import           Data.Aeson.Types    (Parser, typeMismatch)
 import           Data.String         (IsString)
 import           Data.Text           (Text)
+import           Web.FormUrlEncoded  (FromForm (..), lookupMaybe)
 import           Web.HttpApiData     (ToHttpApiData (..))
 
 newtype Token = Token Text deriving (Monoid, IsString, ToHttpApiData, Show, ToJSON, FromJSON, Eq)
 
-data Payload = UrlVerification Challenge Token
-             | EventCallback Event
-               deriving Show
+data EventPayload = UrlVerification Challenge Token
+                  | EventCallback Event
+                    deriving Show
 
-instance FromJSON Payload where
+instance FromJSON EventPayload where
   parseJSON = dispatchOnType parseEvents
 
-parseEvents :: Type -> Value -> Parser Payload
+parseEvents :: Type -> Value -> Parser EventPayload
 parseEvents t@"url_verification" = withPayload t parseUrlVerification
 parseEvents t@"event_callback"   = withPayload t parseEventCallback
 parseEvents unknownType          = typeMismatch (payloadOfType unknownType)
@@ -39,9 +42,9 @@ withPayload :: Type -> (Object -> Parser a) -> Value -> Parser a
 withPayload t = withObject (payloadOfType t)
 
 payloadOfType :: Type -> String
-payloadOfType = ofType "Payload"
+payloadOfType = ofType "EventPayload"
 
-type PayloadParser = Object -> Parser Payload
+type PayloadParser = Object -> Parser EventPayload
 
 parseUrlVerification :: PayloadParser
 parseUrlVerification o =
@@ -62,9 +65,31 @@ parseCallbacks _                = typeMismatch "EventCallback"
 
 newtype Challenge = Challenge Text deriving (Show, FromJSON, ToJSON)
 
-data Response = NoResponse
-              | Acknowledge { challenge :: Challenge }
+data EventResponse = NoResponse
+                   | Acknowledge { challenge :: Challenge }
 
-instance ToJSON Response where
+instance ToJSON EventResponse where
   toJSON Acknowledge{..} = object [ "challenge" .= challenge ]
   toJSON NoResponse      = object []
+
+newtype ReleaseCommandPayload = ReleaseCommandPayload { projectName :: Maybe Text }
+
+instance FromForm ReleaseCommandPayload where
+  fromForm f = mkPayload <$> lookupMaybe "text" f
+    where
+      mkPayload = ReleaseCommandPayload . avoidEmpty
+      avoidEmpty (Just "") = Nothing
+      avoidEmpty mt        = mt
+
+data ReleaseCommandResponse = ChannelResponse { message :: Text }
+                            | PrivateResponse { message :: Text }
+
+instance ToJSON ReleaseCommandResponse where
+  toJSON ChannelResponse{..} =
+    object [ "response_type" .= inChannel
+           , "text"          .= message
+           ]
+      where inChannel = "in_channel" :: Text
+  toJSON PrivateResponse{..} =
+    object [ "text" .= message
+           ]
