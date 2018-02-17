@@ -1,6 +1,12 @@
 module Main where
 
-import Lib
+import           Lib
+
+import           GHC.IO.Handle    (BufferMode (NoBuffering), hSetBuffering)
+import           GHC.IO.Handle.FD (stdout)
 
 main :: IO ()
-main = someFunc
+main = noBuffering >> service
+
+noBuffering :: IO ()
+noBuffering = hSetBuffering stdout NoBuffering

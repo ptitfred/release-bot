@@ -21,9 +21,22 @@ description:         Please see the README on Github at <https://github.com/gith
 
 dependencies:
 - base >= 4.9 && < 5
+- aeson
+- http-api-data
+- http-client-tls
+- mtl
+- servant
+- servant-client
+- servant-server
+- text
+- wai-extra
+- warp
 
 library:
   source-dirs: src
+  ghc-options:
+    - -Wall
+    - -Werror
 
 executables:
   release-bot-exe:
