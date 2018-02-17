@@ -18,7 +18,8 @@ import           Network.Wai.Middleware.RequestLogger
 
 type ReleaseBotAPI = SlackAPI.API :<|> StaticAPI
 
-type StaticAPI = "index.html" :> Raw
+type StaticAPI = Raw
+            :<|> "index.html" :> Raw
 
 api :: Proxy ReleaseBotAPI
 api = Proxy
@@ -35,4 +36,6 @@ application :: Application
 application = serve api server
 
 server :: Server ReleaseBotAPI
-server = SlackAPI.server :<|> serveDirectoryFileServer "public"
+server = SlackAPI.server :<|> (assets :<|> assets)
+  where
+    assets = serveDirectoryFileServer "public"
