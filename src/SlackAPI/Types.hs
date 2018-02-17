@@ -85,11 +85,12 @@ data ReleaseCommandResponse = ChannelResponse { message :: Text }
                             | PrivateResponse { message :: Text }
 
 instance ToJSON ReleaseCommandResponse where
-  toJSON ChannelResponse{..} =
-    object [ "response_type" .= inChannel
-           , "text"          .= message
-           ]
-      where inChannel = "in_channel" :: Text
-  toJSON PrivateResponse{..} =
-    object [ "text" .= message
-           ]
+  toJSON ChannelResponse{..} = message `as` "in_channel"
+  toJSON PrivateResponse{..} = message `as` "ephemeral"
+
+as :: Text -> Text -> Value
+as text responseType =
+  object [ "response_type" .= responseType
+         , "text"          .= text
+         ]
+
