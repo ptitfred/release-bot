@@ -11,7 +11,6 @@ import           Data.String         (IsString)
 import           Data.Text           (Text)
 import           Web.HttpApiData     (ToHttpApiData (..))
 
-type User = Text
 type ItemUser = Text
 
 newtype Timestamp = Timestamp Text deriving (IsString, ToJSON, FromJSON, Show)
@@ -19,8 +18,10 @@ newtype Timestamp = Timestamp Text deriving (IsString, ToJSON, FromJSON, Show)
 instance ToHttpApiData Timestamp where
   toQueryParam (Timestamp t) = toQueryParam t
 
+newtype UserId = UserId Text deriving (IsString, Show, FromJSON)
+
 data ReactionAdded =
-  ReactionAdded { user      :: User
+  ReactionAdded { user      :: UserId
                 , reaction  :: Text
                 , itemUser  :: Maybe ItemUser
                 , item      :: Item

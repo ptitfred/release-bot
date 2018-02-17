@@ -18,21 +18,46 @@ import           SlackAPI.Types
 import           Data.Aeson              hiding (Result)
 import           Data.Aeson.Types        (typeMismatch)
 import           Data.Either             (isRight)
+import           Data.List               (intersperse)
 import           Data.Monoid             ((<>))
 import           Data.Proxy
 import           Data.Text               (Text, pack)
+import qualified Data.Text               as T (unlines)
 import           Network.HTTP.Client.TLS (newTlsManager)
 import           Servant.API
 import           Servant.Client          (BaseUrl (..), ClientEnv (..), ClientM,
                                           Scheme (Https), client, runClientM)
 import           System.Environment      (getEnv)
 
-postReleaseMessage :: Channel -> IO Bool
-postReleaseMessage c = do
-  message <- postMessage c "Reaction with :+1: on this message to approve release."
+postReleaseMessage :: Channel -> Text -> UserId -> IO Bool
+postReleaseMessage c projectName requester = do
+  let committers = [requester] -- for testing purposes
+      content = T.unlines [ "```"
+                          , " Frédéric   PR#123 Make it sweet and nice"
+                          , "```"
+                          ]
+  let text = T.unlines [ advertiseRelease projectName requester
+                       , content
+                       , askCommitters committers
+                       ]
+  message <- postMessage c text
   case message of
     Just (_, ts) -> addReaction c ts "+1"
     Nothing      -> pure False
+
+advertiseRelease :: Text -> UserId -> Text
+advertiseRelease projectName requester =
+  "What about a release of " <> formatProjectName projectName <> "? (requested by " <> formatUserId requester <> ")"
+
+askCommitters :: [UserId] -> Text
+askCommitters committers = call committers <> ", please :+1: this message to approve the release."
+  where call = mconcat . intersperse ", " . fmap formatUserId
+
+formatProjectName :: Text -> Text
+formatProjectName pn = mconcat ["*", pn, "*"]
+
+formatUserId :: UserId -> Text
+formatUserId (UserId userId) = mconcat ["<@", userId, ">"]
 
 lookupMessage :: Channel -> Timestamp -> IO (Maybe Message)
 lookupMessage channel ts =
