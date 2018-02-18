@@ -6,22 +6,27 @@ module SlackAPI.Handlers
   , handleReleaseCommand
   ) where
 
+import qualified Github                    (listMergedPullRequestTitlesForRange)
+import           Github.Types              (Login (..), PullRequest (..),
+                                            PullRequestTitle (..))
 import           SlackAPI.Client           (postReleaseMessage)
 import           SlackAPI.Types
 import           Types
 
+import           Control.Monad             ((>=>))
 import           Control.Monad.Error.Class (throwError)
-import           Control.Monad.IO.Class    (liftIO)
-import           Data.List.NonEmpty        (NonEmpty (..))
+import           Control.Monad.IO.Class    (MonadIO, liftIO)
+import           Data.Bool                 (bool)
+import           Data.List.NonEmpty        (NonEmpty (..), fromList)
 import           Data.Text                 (Text, pack)
 import           Servant.Server            (Handler, err400)
 import           System.Environment        (getEnv)
 
 -- Fake data
 isKnownProject :: ProjectName -> Bool
-isKnownProject "pouet"       = True
-isKnownProject "release-bot" = True
-isKnownProject _             = False
+isKnownProject "demo"                     = True
+isKnownProject "twitch-analytics-haskell" = True
+isKnownProject _                          = False
 
 handleReleaseCommand :: ReleaseCommandPayload -> Handler ReleaseCommandResponse
 handleReleaseCommand BadPayload = sayInPrivate "Missing the project name argument"
@@ -32,15 +37,32 @@ handleReleaseCommand ReleaseCommandPayload{..} =
 
 advertiseRelease :: Channel -> ProjectName -> UserId -> Handler ReleaseCommandResponse
 advertiseRelease channel projectName userId =
-  let interpretSuccess True  = "Here you go"
-      interpretSuccess False = "Oops! Something went wrong when posting the release message"
-      myself = Committer "ptitfred" userId
-      contribs = Contrib myself "Make it sweet and nice" 123 "https://localhost:8080/pull/123"
-              :| Contrib myself "Fix bugs"               124 "https://localhost:8080/pull/124"
-              :  Contrib myself "Moar bugfixes >.<"      125 "https://localhost:8080/pull/125"
-              :  []
-      go = postReleaseMessage channel projectName userId contribs
-  in go >>= sayInPrivate . interpretSuccess
+  let interpretSuccess = bool oops yay
+      yay = sayInPrivate "Here you go"
+      oops = sayInPrivate "Oops! Something went wrong when posting the release message"
+      myself = Committer "ptitfred" Nothing -- (Just userId)
+      mapping = const myself
+      go = postReleaseMessage channel projectName userId
+  in listContribs projectName mapping >>= maybe oops (go >=> interpretSuccess)
+
+listContribs :: MonadIO m => ProjectName -> (Text -> Committer) -> m (Maybe (NonEmpty Contrib))
+listContribs "demo" mapping = liftIO . pure . pure $
+     Contrib (mapping "ptitfred") "Make it sweet and nice" 123 "https://localhost:8080/pull/123"
+  :| Contrib (mapping "ptitfred") "Fix bugs"               124 "https://localhost:8080/pull/124"
+   : Contrib (mapping "ptitfred") "Moar bugfixes >.<"      125 "https://localhost:8080/pull/125"
+   : []
+listContribs projectName mapping = liftIO $ do
+  either (const Nothing) (prsToContrib (slackId . mapping)) <$> Github.listMergedPullRequestTitlesForRange "ptitfred" projectName "release" "master"
+
+prsToContrib :: (Text -> Maybe UserId) -> [PullRequest] -> Maybe (NonEmpty Contrib)
+prsToContrib _       []  = Nothing
+prsToContrib mapping prs = Just . fromList . fmap (prToContrib mapping) $ prs
+
+prToContrib :: (Text -> Maybe UserId) -> PullRequest -> Contrib
+prToContrib mapping (PullRequest (PullRequestTitle title) _ (Login githubLogin) url number) = Contrib{..}
+  where
+    committer = Committer{..}
+    slackId = mapping githubLogin
 
 warnUnknownProject :: ProjectName -> Handler ReleaseCommandResponse
 warnUnknownProject pn = sayInPrivate $

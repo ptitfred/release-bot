@@ -3,6 +3,8 @@
 
 module Github.Types where
 
+import           Types
+
 import           Data.Aeson
 import           Data.Aeson.Types (typeMismatch)
 import           Data.String      (IsString)
@@ -10,7 +12,6 @@ import           Data.Text        (Text)
 import           Servant.API      (ToHttpApiData (..))
 
 newtype OrganizationName = OrganizationName Text deriving (ToHttpApiData, IsString, Show)
-newtype ProjectName      = ProjectName      Text deriving (ToHttpApiData, IsString, Show)
 newtype BranchName       = BranchName       Text deriving (ToHttpApiData, IsString, Show)
 
 newtype PullRequestTitle = PullRequestTitle Text deriving (FromJSON, Show)
@@ -47,6 +48,8 @@ data PullRequest =
     { title       :: PullRequestTitle
     , mergeCommit :: Sha
     , author      :: Login
+    , url         :: URL
+    , number      :: Int
     } deriving Show
 
 instance FromJSON PullRequest where
@@ -55,4 +58,6 @@ instance FromJSON PullRequest where
     PullRequest <$> o .: "title"
                 <*> o .: "merge_commit_sha"
                 <*> user .: "login"
+                <*> o .: "html_url"
+                <*> o .: "number"
   parseJSON invalid = typeMismatch "PullRequest" invalid

@@ -9,6 +9,7 @@ module Github.Client
   ) where
 
 import           Github.Types
+import           Types
 
 import           Data.Proxy
 import qualified Data.Set                as S (fromList, member)

@@ -108,10 +108,8 @@ as text responseType =
 
 data Committer =
   Committer { githubLogin :: Text
-            , slackId     :: UserId
+            , slackId     :: Maybe UserId
             } deriving (Ord, Eq)
-
-newtype URL = URL { getURL :: Text } deriving (IsString, Ord, Eq)
 
 data Contrib =
   Contrib { committer :: Committer

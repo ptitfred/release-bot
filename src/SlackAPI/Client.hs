@@ -21,6 +21,7 @@ import           Data.Aeson.Types        (typeMismatch)
 import           Data.Either             (isRight)
 import           Data.List               (intersperse)
 import           Data.List.NonEmpty      as NE (NonEmpty, toList)
+import           Data.Maybe              (mapMaybe)
 import           Data.Monoid             ((<>))
 import           Data.Proxy
 import           Data.Set                as S (fromList, toList)
@@ -45,8 +46,8 @@ postReleaseMessage channel projectName requester contribs = liftIO $ do
     Just (_, ts) -> addReaction channel ts "+1"
     Nothing      -> pure False
 
-enumerateCommitters :: NonEmpty Contrib -> [Committer]
-enumerateCommitters = S.toList . S.fromList . NE.toList . fmap committer
+enumerateCommitters :: NonEmpty Contrib -> [UserId]
+enumerateCommitters = S.toList . S.fromList . mapMaybe (slackId . committer) . NE.toList
 
 content :: NonEmpty Contrib -> Text
 content = T.unlines . NE.toList . fmap formatContrib
@@ -54,10 +55,10 @@ content = T.unlines . NE.toList . fmap formatContrib
 formatContrib :: Contrib -> Text
 formatContrib Contrib{..} = sformat contrib committer url title number
   where
-    contrib = "> " % loginFormat % " " % pullRequestFormat
+    contrib = "> " % loginFormat % " – " % pullRequestFormat
 
 pullRequestFormat :: Format r (URL -> Text -> Int -> r)
-pullRequestFormat = "<" % urlFormat % "|" % escapedText % " – #" % int % ">"
+pullRequestFormat = "<" % urlFormat % "|" % escapedText % "> #" % int % ""
 
 urlFormat :: Format r (URL -> r)
 urlFormat = mapf getURL stext
@@ -73,15 +74,15 @@ advertiseRelease :: ProjectName -> UserId -> Text
 advertiseRelease = sformat $
   "What about a release of " % projectNameFormat % "? (requested by " % userIdFormat % ")"
 
-askCommitters :: [Committer] -> Text
+askCommitters :: [UserId] -> Text
+askCommitters [] = T.unlines [ "No known committers has been found :no_mouth:"
+                             , "Can somebody :+1: this message to approve the release?"
+                             ]
 askCommitters committers = call committers <> ", please :+1: this message to approve the release."
-  where call = mconcat . intersperse ", " . fmap formatUserId
+  where call = mconcat . intersperse ", " . fmap (sformat userIdFormat)
 
 projectNameFormat :: Format r (ProjectName -> r)
 projectNameFormat = mapf getProjectName $ "*" % escapedText % "*"
-
-formatUserId :: Committer -> Text
-formatUserId = sformat userIdFormat . slackId
 
 loginFormat :: Format r (Committer -> r)
 loginFormat = mapf githubLogin escapedText
