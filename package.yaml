@@ -23,6 +23,7 @@ dependencies:
 - base >= 4.9 && < 5
 - aeson
 - containers
+- formatting
 - http-api-data
 - http-client-tls
 - mtl
