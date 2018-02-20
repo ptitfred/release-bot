@@ -40,7 +40,7 @@ advertiseRelease channel projectName userId =
   let interpretSuccess = bool oops yay
       yay = sayInPrivate "Here you go"
       oops = sayInPrivate "Oops! Something went wrong when posting the release message"
-      myself = Committer "ptitfred" Nothing -- (Just userId)
+      myself = Committer "ptitfred" (Just userId)
       mapping = const myself
       go = postReleaseMessage channel projectName userId
   in listContribs projectName mapping >>= maybe oops (go >=> interpretSuccess)

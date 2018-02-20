@@ -58,7 +58,7 @@ formatContrib Contrib{..} = sformat contrib committer url title number
     contrib = "> " % loginFormat % " – " % pullRequestFormat
 
 pullRequestFormat :: Format r (URL -> Text -> Int -> r)
-pullRequestFormat = "<" % urlFormat % "|" % escapedText % "> #" % int % ""
+pullRequestFormat = "<" % urlFormat % "|" % escapedText % "> #" % int
 
 urlFormat :: Format r (URL -> r)
 urlFormat = mapf getURL stext
@@ -71,8 +71,9 @@ escapedText = mapf escape stext
            . replace "&" "&amp;"
 
 advertiseRelease :: ProjectName -> UserId -> Text
-advertiseRelease = sformat $
-  "What about a release of " % projectNameFormat % "? (requested by " % userIdFormat % ")"
+advertiseRelease = sformat request
+  where
+    request = "What about a release of " % projectNameFormat % "? (requested by " % userIdFormat % ")"
 
 askCommitters :: [UserId] -> Text
 askCommitters [] = T.unlines [ "No known committers has been found :no_mouth:"
@@ -98,16 +99,17 @@ lookupMessage channel ts = interpretResult <$> lookupMessageEither channel ts
 postMessage :: Channel -> Text -> IO (Maybe (Channel, Timestamp))
 postMessage channel text = do
   token <- getAccessToken
-  let request = ChatPostMessageRequest{..}
-  interpretResult <$> runSlackClient (postMessageClient (Just ("Bearer " <> token)) request)
-  where
-    interpretResult = either (const Nothing) (Just . extractIds)
+  let auth = Just ("Bearer " <> token)
+      request = ChatPostMessageRequest{..}
+      interpretResult = either (const Nothing) (Just . extractIds)
+  interpretResult <$> runSlackClient (postMessageClient auth request)
 
 addReaction :: Channel -> Timestamp -> Text -> IO Bool
 addReaction channel ts reaction = do
   token <- getAccessToken
-  let request = ReactionsAddRequest{..}
-  isRight <$> runSlackClient (addReactionClient (Just ("Bearer " <> token)) request)
+  let auth    = Just ("Bearer " <> token)
+      request = ReactionsAddRequest{..}
+  isRight <$> runSlackClient (addReactionClient auth request)
 
 extractIds :: ChatPostMessage -> (Channel, Timestamp)
 extractIds ChatPostMessage{..} = (channel, ts)
