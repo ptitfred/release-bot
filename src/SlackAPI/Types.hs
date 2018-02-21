@@ -12,16 +12,20 @@ module SlackAPI.Types
   , module SlackAPI.Events
   , ReleaseCommandPayload(..)
   , ReleaseCommandResponse(..)
+  , Contrib(..)
+  , Committer(..)
+  , URL(..)
   ) where
 
 import           SlackAPI.AesonUtils
 import           SlackAPI.Events
+import           Types
 
 import           Data.Aeson
 import           Data.Aeson.Types    (Parser, typeMismatch)
 import           Data.String         (IsString (..))
 import           Data.Text           (Text)
-import           Web.FormUrlEncoded  (FromForm (..), lookupMaybe, parseUnique)
+import           Web.FormUrlEncoded  (FromForm (..), parseMaybe, parseUnique)
 import           Web.HttpApiData     (ToHttpApiData (..))
 
 newtype Token = Token Text deriving (Monoid, IsString, ToHttpApiData, Show, ToJSON, FromJSON, Eq)
@@ -72,20 +76,22 @@ instance ToJSON EventResponse where
   toJSON Acknowledge{..} = object [ "challenge" .= challenge ]
   toJSON NoResponse      = object []
 
-data ReleaseCommandPayload =
-  ReleaseCommandPayload { projectName :: Maybe Text
-                        , userId      :: UserId
-                        , channel     :: Channel
-                        }
+data ReleaseCommandPayload = BadPayload
+                           | ReleaseCommandPayload { projectName :: ProjectName
+                                                   , userId      :: UserId
+                                                   , channel     :: Channel
+                                                   }
 
 instance FromForm ReleaseCommandPayload where
-  fromForm f =
-    ReleaseCommandPayload <$> (avoidEmpty <$> lookupMaybe "text" f)
-                          <*> (fromString <$> parseUnique "user_id" f)
-                          <*> (fromString <$> parseUnique "channel_id" f)
-      where
-        avoidEmpty (Just "") = Nothing
-        avoidEmpty mt        = mt
+  fromForm f = do
+    let avoidEmpty (Just "") = Nothing
+        avoidEmpty mt        = fromString <$> mt
+        parseUserId  = fromString <$> parseUnique "user_id"    f
+        parseChannel = fromString <$> parseUnique "channel_id" f
+    pn <- avoidEmpty <$> parseMaybe "text" f
+    case pn of
+      Nothing   -> pure BadPayload
+      Just name -> ReleaseCommandPayload name <$> parseUserId <*> parseChannel
 
 data ReleaseCommandResponse = ChannelResponse { message :: Text }
                             | PrivateResponse { message :: Text }
@@ -99,3 +105,15 @@ as text responseType =
   object [ "response_type" .= responseType
          , "text"          .= text
          ]
+
+data Committer =
+  Committer { githubLogin :: Text
+            , slackId     :: Maybe UserId
+            } deriving (Ord, Eq)
+
+data Contrib =
+  Contrib { committer :: Committer
+          , title     :: Text
+          , number    :: Int
+          , url       :: URL
+          }

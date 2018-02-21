@@ -1,9 +1,8 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DuplicateRecordFields      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module SlackAPI.Client
   ( lookupMessage
@@ -14,70 +13,103 @@ module SlackAPI.Client
   ) where
 
 import           SlackAPI.Types
+import           Types
 
+import           Control.Monad.IO.Class  (MonadIO, liftIO)
 import           Data.Aeson              hiding (Result)
 import           Data.Aeson.Types        (typeMismatch)
 import           Data.Either             (isRight)
 import           Data.List               (intersperse)
+import           Data.List.NonEmpty      as NE (NonEmpty, toList)
+import           Data.Maybe              (mapMaybe)
 import           Data.Monoid             ((<>))
 import           Data.Proxy
-import           Data.Text               (Text, pack)
+import           Data.Set                as S (fromList, toList)
+import           Data.Text               (Text, pack, replace)
 import qualified Data.Text               as T (unlines)
+import           Formatting              hiding (text)
 import           Network.HTTP.Client.TLS (newTlsManager)
 import           Servant.API
 import           Servant.Client          (BaseUrl (..), ClientEnv (..), ClientM,
                                           Scheme (Https), client, runClientM)
 import           System.Environment      (getEnv)
 
-postReleaseMessage :: Channel -> Text -> UserId -> IO Bool
-postReleaseMessage c projectName requester = do
-  let committers = [requester] -- for testing purposes
-      content = T.unlines [ "```"
-                          , " Frédéric   PR#123 Make it sweet and nice"
-                          , "```"
-                          ]
-  let text = T.unlines [ advertiseRelease projectName requester
-                       , content
+postReleaseMessage :: MonadIO m => Channel -> ProjectName -> UserId -> NonEmpty Contrib -> m Bool
+postReleaseMessage channel projectName requester contribs = liftIO $ do
+  let committers = enumerateCommitters contribs
+      text = T.unlines [ advertiseRelease projectName requester
+                       , content contribs
                        , askCommitters committers
                        ]
-  message <- postMessage c text
+  message <- postMessage channel text
   case message of
-    Just (_, ts) -> addReaction c ts "+1"
+    Just (_, ts) -> addReaction channel ts "+1"
     Nothing      -> pure False
 
-advertiseRelease :: Text -> UserId -> Text
-advertiseRelease projectName requester =
-  "What about a release of " <> formatProjectName projectName <> "? (requested by " <> formatUserId requester <> ")"
+enumerateCommitters :: NonEmpty Contrib -> [UserId]
+enumerateCommitters = S.toList . S.fromList . mapMaybe (slackId . committer) . NE.toList
+
+content :: NonEmpty Contrib -> Text
+content = T.unlines . NE.toList . fmap formatContrib
+
+formatContrib :: Contrib -> Text
+formatContrib Contrib{..} = sformat contrib committer url title number
+  where
+    contrib = "> " % loginFormat % " – " % pullRequestFormat
+
+pullRequestFormat :: Format r (URL -> Text -> Int -> r)
+pullRequestFormat = "<" % urlFormat % "|" % escapedText % "> #" % int
+
+urlFormat :: Format r (URL -> r)
+urlFormat = mapf getURL stext
+
+escapedText :: Format r (Text -> r)
+escapedText = mapf escape stext
+  where
+    escape = replace "<" "&lt;"
+           . replace ">" "&gt;"
+           . replace "&" "&amp;"
+
+advertiseRelease :: ProjectName -> UserId -> Text
+advertiseRelease = sformat request
+  where
+    request = "What about a release of " % projectNameFormat % "? (requested by " % userIdFormat % ")"
 
 askCommitters :: [UserId] -> Text
+askCommitters [] = T.unlines [ "No known committers has been found :no_mouth:"
+                             , "Can somebody :+1: this message to approve the release?"
+                             ]
 askCommitters committers = call committers <> ", please :+1: this message to approve the release."
-  where call = mconcat . intersperse ", " . fmap formatUserId
+  where call = mconcat . intersperse ", " . fmap (sformat userIdFormat)
 
-formatProjectName :: Text -> Text
-formatProjectName pn = mconcat ["*", pn, "*"]
+projectNameFormat :: Format r (ProjectName -> r)
+projectNameFormat = mapf getProjectName $ "*" % escapedText % "*"
 
-formatUserId :: UserId -> Text
-formatUserId (UserId userId) = mconcat ["<@", userId, ">"]
+loginFormat :: Format r (Committer -> r)
+loginFormat = mapf githubLogin escapedText
+
+userIdFormat :: Format r (UserId -> r)
+userIdFormat = mapf getUserId $ "<@" % stext % ">"
 
 lookupMessage :: Channel -> Timestamp -> IO (Maybe Message)
-lookupMessage channel ts =
-  interpretResult <$> lookupMessageEither channel ts
+lookupMessage channel ts = interpretResult <$> lookupMessageEither channel ts
   where
     interpretResult = either (const Nothing) safeHead
 
 postMessage :: Channel -> Text -> IO (Maybe (Channel, Timestamp))
 postMessage channel text = do
   token <- getAccessToken
-  let request = ChatPostMessageRequest{..}
-  interpretResult <$> runSlackClient (postMessageClient (Just ("Bearer " <> token)) request)
-  where
-    interpretResult = either (const Nothing) (Just . extractIds)
+  let auth = Just ("Bearer " <> token)
+      request = ChatPostMessageRequest{..}
+      interpretResult = either (const Nothing) (Just . extractIds)
+  interpretResult <$> runSlackClient (postMessageClient auth request)
 
 addReaction :: Channel -> Timestamp -> Text -> IO Bool
 addReaction channel ts reaction = do
   token <- getAccessToken
-  let request = ReactionsAddRequest{..}
-  isRight <$> runSlackClient (addReactionClient (Just ("Bearer " <> token)) request)
+  let auth    = Just ("Bearer " <> token)
+      request = ReactionsAddRequest{..}
+  isRight <$> runSlackClient (addReactionClient auth request)
 
 extractIds :: ChatPostMessage -> (Channel, Timestamp)
 extractIds ChatPostMessage{..} = (channel, ts)

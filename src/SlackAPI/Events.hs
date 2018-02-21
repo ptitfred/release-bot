@@ -18,7 +18,7 @@ newtype Timestamp = Timestamp Text deriving (IsString, ToJSON, FromJSON, Show)
 instance ToHttpApiData Timestamp where
   toQueryParam (Timestamp t) = toQueryParam t
 
-newtype UserId = UserId Text deriving (IsString, Show, FromJSON)
+newtype UserId = UserId { getUserId :: Text } deriving (IsString, Show, FromJSON, Ord, Eq)
 
 data ReactionAdded =
   ReactionAdded { user      :: UserId
