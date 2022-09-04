@@ -22,7 +22,6 @@ import           Data.Either             (isRight)
 import           Data.List               (intersperse)
 import           Data.List.NonEmpty      as NE (NonEmpty, toList)
 import           Data.Maybe              (mapMaybe)
-import           Data.Monoid             ((<>))
 import           Data.Proxy
 import           Data.Set                as S (fromList, toList)
 import           Data.Text               (Text, pack, replace)
@@ -30,8 +29,9 @@ import qualified Data.Text               as T (unlines)
 import           Formatting              hiding (text)
 import           Network.HTTP.Client.TLS (newTlsManager)
 import           Servant.API
-import           Servant.Client          (BaseUrl (..), ClientEnv (..), ClientM,
-                                          Scheme (Https), client, runClientM)
+import           Servant.Client          (BaseUrl (..), ClientEnv, ClientM,
+                                          Scheme (Https), client, mkClientEnv,
+                                          runClientM)
 import           System.Environment      (getEnv)
 
 postReleaseMessage :: MonadIO m => Channel -> ProjectName -> UserId -> NonEmpty Contrib -> m Bool
@@ -135,7 +135,7 @@ getClientEnv = do
                         , baseUrlPort = 443
                         , baseUrlPath = "/"
                         }
-  pure $ ClientEnv manager baseUrl
+  pure $ mkClientEnv manager baseUrl
 
 data Message = Message { text :: Text } deriving Show
 
