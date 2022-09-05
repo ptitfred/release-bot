@@ -8,6 +8,7 @@ module Lib
 
 import qualified SlackAPI                             as SlackAPI
 
+import           Data.Maybe                           (fromMaybe)
 import           Data.Proxy
 import           Servant.API
 import           Servant.Server
@@ -15,6 +16,7 @@ import           Servant.Server.StaticFiles           (serveDirectoryFileServer)
 
 import           Network.Wai.Handler.Warp             (Port, runEnv)
 import           Network.Wai.Middleware.RequestLogger
+import           System.Environment                   (lookupEnv)
 
 type ReleaseBotAPI = SlackAPI.API :<|> StaticAPI
 
@@ -27,15 +29,19 @@ api = Proxy
 service :: IO ()
 service = do
   putStrLn "release-bot says hello"
-  runEnv defaultPort (logStdout application)
+  assetsDirectory <- getAssetsDirectory
+  runEnv defaultPort (logStdout (application assetsDirectory))
 
 defaultPort :: Port
 defaultPort = 8080
 
-application :: Application
-application = serve api server
+application :: FilePath -> Application
+application = serve api . server
 
-server :: Server ReleaseBotAPI
-server = SlackAPI.server :<|> (assets :<|> assets)
+server :: FilePath -> Server ReleaseBotAPI
+server assetsDirectory = SlackAPI.server :<|> (assets :<|> assets)
   where
-    assets = serveDirectoryFileServer "public"
+    assets = serveDirectoryFileServer assetsDirectory
+
+getAssetsDirectory :: IO FilePath
+getAssetsDirectory = fromMaybe "public" <$> lookupEnv "ASSETS_DIRECTORY"
