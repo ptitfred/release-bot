@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE DuplicateRecordFields      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -28,7 +29,7 @@ import           Data.Text           (Text)
 import           Web.FormUrlEncoded  (FromForm (..), parseMaybe, parseUnique)
 import           Web.HttpApiData     (ToHttpApiData (..))
 
-newtype Token = Token Text deriving (Monoid, IsString, ToHttpApiData, Show, ToJSON, FromJSON, Eq)
+newtype Token = Token Text deriving newtype (Semigroup, Monoid, IsString, ToHttpApiData, Show, ToJSON, FromJSON, Eq)
 
 data EventPayload = UrlVerification Challenge Token
                   | EventCallback Event

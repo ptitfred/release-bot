@@ -86,7 +86,7 @@ check challenge token = do
   else badRequest
 
 handleEvent :: Event -> Handler EventResponse
-handleEvent (ReactionAddedEvent ReactionAdded{..}) = pure NoResponse
+handleEvent (ReactionAddedEvent _) = pure NoResponse
 
 badRequest :: Handler a
 badRequest = throwError err400

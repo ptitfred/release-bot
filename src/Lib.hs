@@ -11,7 +11,7 @@ import qualified SlackAPI                             as SlackAPI
 import           Data.Proxy
 import           Servant.API
 import           Servant.Server
-import           Servant.Utils.StaticFiles            (serveDirectoryFileServer)
+import           Servant.Server.StaticFiles           (serveDirectoryFileServer)
 
 import           Network.Wai.Handler.Warp             (Port, runEnv)
 import           Network.Wai.Middleware.RequestLogger

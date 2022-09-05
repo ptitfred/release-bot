@@ -84,11 +84,11 @@ listClosedPullRequestsForRangeClient :: OrganizationName -> ProjectName -> Range
 listClosedPullRequestsForRangeClient on pn range =
   listCommitsForRangeClient on pn userAgent range >>= listClosedPullRequestsUpToClient on pn
 
-listMergedPullRequestTitlesForRange :: OrganizationName -> ProjectName -> BranchName -> BranchName -> IO (Either ServantError [PullRequest])
+listMergedPullRequestTitlesForRange :: OrganizationName -> ProjectName -> BranchName -> BranchName -> IO (Either ClientError [PullRequest])
 listMergedPullRequestTitlesForRange on pn from to =
   defaultGithubClientEnv >>= listMergedPullRequestTitlesForRangeCustom on pn from to
 
-listMergedPullRequestTitlesForRangeCustom :: OrganizationName -> ProjectName -> BranchName -> BranchName -> ClientEnv -> IO (Either ServantError [PullRequest])
+listMergedPullRequestTitlesForRangeCustom :: OrganizationName -> ProjectName -> BranchName -> BranchName -> ClientEnv -> IO (Either ClientError [PullRequest])
 listMergedPullRequestTitlesForRangeCustom on pn from to = runClientM (listClosedPullRequestsForRangeClient on pn range)
   where
     range = Range (from, to)
@@ -98,7 +98,7 @@ userAgent = Just "Release-Bot v1"
 
 defaultGithubClientEnv :: IO ClientEnv
 defaultGithubClientEnv =
-  ClientEnv <$> newTlsManager
+  mkClientEnv <$> newTlsManager
             <*> pure githubApiv3
 
 githubApiv3 :: BaseUrl
