@@ -1,9 +1,9 @@
 name:                release-bot
 version:             0.1.0.0
-github:              "githubuser/release-bot"
+github:              "ptitfred/release-bot"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
+author:              "Frédéric Menou"
+maintainer:          "frederic.menou@gmail.com"
 copyright:           "2018 Author name here"
 
 extra-source-files:
@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on Github at <https://github.com/githubuser/release-bot#readme>
+description:         Please see the README on Github at <https://github.com/ptitfred/release-bot#readme>
 
 dependencies:
 - base >= 4.9 && < 5
