@@ -28,12 +28,13 @@ api = Proxy
 
 service :: IO ()
 service = do
-  putStrLn "release-bot says hello"
   assetsDirectory <- getAssetsDirectory
-  runEnv defaultPort (logStdout (application assetsDirectory))
+  port <- getPort
+  putStrLn ("release-bot started on tcp:" <> show port)
+  runEnv port (logStdout (application assetsDirectory))
 
 defaultPort :: Port
-defaultPort = 8080
+defaultPort = 3000
 
 application :: FilePath -> Application
 application = serve api . server
@@ -45,3 +46,6 @@ server assetsDirectory = SlackAPI.server :<|> (assets :<|> assets)
 
 getAssetsDirectory :: IO FilePath
 getAssetsDirectory = fromMaybe "public" <$> lookupEnv "ASSETS_DIRECTORY"
+
+getPort :: IO Port
+getPort = maybe defaultPort read <$> lookupEnv "PORT"
